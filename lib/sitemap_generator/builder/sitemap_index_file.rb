@@ -26,10 +26,7 @@ module SitemapGenerator
         @written = false
         @reserved_name = nil # holds the name reserved from the namer
         @frozen = false      # rather than actually freeze, use this boolean
-        @first_sitemap = nil # reference to the first thing added to this index
-        # Store the URL of the first sitemap added because if create_index is
-        # false this is the "index" URL
-        @first_sitemap_url = nil
+
       end
 
       # Finalize sitemaps as they are added to the index.
@@ -49,23 +46,9 @@ module SitemapGenerator
           @sitemaps_link_count += file.link_count
           file.finalize! unless file.finalized?
 
-          # First link.  If it's a SitemapFile store a reference to it and the options
-          # so that we can create a URL from it later.  We can't create the URL yet
-          # because doing so fixes the sitemap file's name, and we have to wait to see
-          # if we have more than one link in the index before we can know who gets the
-          # first name (the index, or the sitemap).  If the item is not a SitemapFile,
-          # then it has been manually added and we can be sure that the user intends
-          # for there to be an index.
-          if @link_count == 0
-            @first_sitemap = SitemapGenerator::Builder::LinkHolder.new(file, options)
-            @link_count += 1     # pretend it's added, but don't add it yet
-          else
-            # need an index so make sure name is reserved and first sitemap is written out
-            reserve_name unless @location.create_index == false
-            write_first_sitemap
-            file.write
-            super(SitemapGenerator::Builder::SitemapIndexUrl.new(file, options))
-          end
+          reserve_name unless @location.create_index == false
+          file.write
+          super(SitemapGenerator::Builder::SitemapIndexUrl.new(file, options))
         else
           # A link is being added manually.  Obviously the user wants an index.
           # This overrides the create_index setting.
@@ -101,7 +84,6 @@ module SitemapGenerator
       def finalize!
         raise SitemapGenerator::SitemapFinalizedError if finalized?
         reserve_name if create_index?
-        write_first_sitemap
         @frozen = true
       end
 
@@ -123,26 +105,7 @@ module SitemapGenerator
       # of the first sitemap that was written out.  Only call this method
       # *after* the files have been finalized.
       def index_url
-        if create_index? || !@first_sitemap_url
-          @location.url
-        else
-          @first_sitemap_url
-        end
-      end
-
-      protected
-
-      # Make sure the first sitemap has been written out and added to the index
-      def write_first_sitemap
-        if @first_sitemap
-          @first_sitemap.link.write unless @first_sitemap.link.written?
-          super_add(SitemapGenerator::Builder::SitemapIndexUrl.new(@first_sitemap.link, @first_sitemap.options))
-          @link_count -= 1   # we already counted it, don't count it twice
-          # Store the URL because if create_index is false, this is the
-          # "index" URL
-          @first_sitemap_url = @first_sitemap.link.location.url
-          @first_sitemap = nil
-        end
+        @location.url
       end
     end
   end
